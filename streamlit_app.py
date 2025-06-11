@@ -42,7 +42,7 @@ def preprocess_data(df, valence_col, energy_col):
     clean = df.dropna(subset=[valence_col, energy_col])
     if clean.empty:
         st.error("Tidak ada data valid setelah menghapus nilai kosong!")
-        return None
+        return False
     st.session_state.df_clean = clean
     st.session_state.data = clean[[valence_col, energy_col]].values
     st.session_state.valence_col = valence_col
@@ -140,33 +140,54 @@ def plot_clusters():
 
 # --- Saving Results ---
 def save_results():
-    """UI for saving the chosen k clustering results to Excel and Pickle."""
+    """UI for saving the chosen k clustering results to Excel and Pickle, plus download buttons."""
     st.subheader("💾 Simpan Hasil Klasterisasi")
     os.makedirs('saved_models', exist_ok=True)
-    c1, c2 = st.columns(2)
-    with c1:
+    col1, col2 = st.columns(2)
+    with col1:
         name = st.text_input("Nama File (tanpa ekstensi):")
-    with c2:
+    with col2:
         k = st.selectbox("Simpan untuk k =", options=list(st.session_state.results_dict.keys()))
     if st.button("💿 Simpan Hasil"):
         if not name:
             st.error("Harap beri nama file!")
             return
-        df_save = st.session_state.df_clean.copy()
-        df_save['Cluster'] = st.session_state.results_dict[k]['labels']
-        model_data = {
-            'centroids': st.session_state.results_dict[k]['centroids'],
-            'k': k,
-            'features': [st.session_state.valence_col, st.session_state.energy_col],
-            'data': st.session_state.data
-        }
-        excel_path = os.path.join('saved_models', f"{name}.xlsx")
-        pkl_path = os.path.join('saved_models', f"{name}_k{k}.pkl")
-        df_save.to_excel(excel_path, index=False)
-        with open(pkl_path, 'wb') as f:
-            pickle.dump(model_data, f)
-        st.success(f"Berhasil disimpan di: {excel_path} dan {pkl_path}")
-        st.balloons()
+        try:
+            # prepare data
+            df_save = st.session_state.df_clean.copy()
+            df_save['Cluster'] = st.session_state.results_dict[k]['labels']
+            model_data = {
+                'centroids': st.session_state.results_dict[k]['centroids'],
+                'k': k,
+                'features': [st.session_state.valence_col, st.session_state.energy_col],
+                'data': st.session_state.data
+            }
+            # file paths
+            excel_path = os.path.join('saved_models', f"{name}.xlsx")
+            pkl_path = os.path.join('saved_models', f"{name}_k{k}.pkl")
+            # write files
+            df_save.to_excel(excel_path, index=False)
+            with open(pkl_path, 'wb') as f:
+                pickle.dump(model_data, f)
+            st.success(f"Berhasil disimpan di: {excel_path} dan {pkl_path}")
+            # download buttons
+            with open(excel_path, 'rb') as f_excel:
+                st.download_button(
+                    label="📥 Unduh Excel Hasil",
+                    data=f_excel,
+                    file_name=f"{name}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            with open(pkl_path, 'rb') as f_pkl:
+                st.download_button(
+                    label="📥 Unduh Pickle Model",
+                    data=f_pkl,
+                    file_name=f"{name}_k{k}.pkl",
+                    mime="application/octet-stream"
+                )
+            st.balloons()
+        except Exception as e:
+            st.error(f"Gagal menyimpan: {e}")
 
 # --- Main App ---
 def main():
